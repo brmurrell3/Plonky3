@@ -45,6 +45,11 @@ pub(crate) fn with_asic<R>(f: impl FnOnce(&mut AsicConnection<Box<dyn Transport>
     })
 }
 
+/// Check if the ASIC backend has been initialized.
+pub fn is_initialized() -> bool {
+    ASIC.with(|cell| cell.borrow().is_some())
+}
+
 /// Compute a dot product using the ASIC's MAC unit.
 pub fn execute_dot_product(a: &[u32], b: &[u32]) -> u32 {
     with_asic(|conn: &mut AsicConnection<Box<dyn Transport>>| {
@@ -59,6 +64,7 @@ pub fn execute_dot_product(a: &[u32], b: &[u32]) -> u32 {
 mod tests {
     use super::*;
     use m31_accel_driver::mock::MockAsic;
+    use p3_field::PrimeCharacteristicRing;
 
     #[test]
     fn test_asic_dot_product_via_mock() {
@@ -72,5 +78,44 @@ mod tests {
         init_asic_with_transport(MockAsic::new());
         let result = execute_dot_product(&[1, 2, 3, 4], &[5, 6, 7, 8]);
         assert_eq!(result, 70); // 1*5+2*6+3*7+4*8 = 70
+    }
+
+    #[test]
+    fn test_asic_dot_matches_software() {
+        init_asic_with_transport(MockAsic::new());
+
+        // Test that dot_product via ASIC matches software for N=16
+        let lhs: [crate::Mersenne31; 16] = core::array::from_fn(|i| crate::Mersenne31::new(i as u32 * 7 + 3));
+        let rhs: [crate::Mersenne31; 16] = core::array::from_fn(|i| crate::Mersenne31::new(i as u32 * 13 + 5));
+
+        // Compute via the trait method (dispatches to ASIC for N>=8)
+        let asic_result = crate::Mersenne31::dot_product(&lhs, &rhs);
+
+        // Compute in software
+        let sw_result: crate::Mersenne31 = lhs.iter().zip(rhs.iter()).map(|(a, b)| *a * *b).sum();
+
+        assert_eq!(asic_result, sw_result);
+    }
+
+    #[test]
+    fn test_asic_dot_matches_software_100_random() {
+        init_asic_with_transport(MockAsic::new());
+
+        // Use a simple LCG for deterministic pseudo-random values
+        let mut seed: u64 = 0xDEAD_BEEF_CAFE;
+        let next = |s: &mut u64| -> u32 {
+            *s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((*s >> 33) as u32) % 0x7FFFFFFF
+        };
+
+        for _ in 0..100 {
+            let lhs: [crate::Mersenne31; 16] = core::array::from_fn(|_| crate::Mersenne31::new(next(&mut seed)));
+            let rhs: [crate::Mersenne31; 16] = core::array::from_fn(|_| crate::Mersenne31::new(next(&mut seed)));
+
+            let asic_result = crate::Mersenne31::dot_product(&lhs, &rhs);
+            let sw_result: crate::Mersenne31 = lhs.iter().zip(rhs.iter()).map(|(a, b)| *a * *b).sum();
+
+            assert_eq!(asic_result, sw_result, "mismatch on random vector");
+        }
     }
 }

@@ -34,6 +34,14 @@ optional = true
 
 [dev-dependencies]
 p3-field-testing = { path = "../field-testing" }
+p3-air = { path = "../air" }
+p3-circle = { path = "../circle" }
+p3-commit = { path = "../commit", features = ["test-utils"] }
+p3-fri = { path = "../fri" }
+p3-keccak = { path = "../keccak" }
+p3-merkle-tree = { path = "../merkle-tree" }
+p3-uni-stark = { path = "../uni-stark" }
+m31-accel-driver = { path = "../../driver" }
 
 criterion.workspace = true
 rand_xoshiro.workspace = true

@@ -266,6 +266,16 @@ impl PrimeCharacteristicRing for Mersenne31 {
 
     #[inline]
     fn dot_product<const N: usize>(lhs: &[Self; N], rhs: &[Self; N]) -> Self {
+        #[cfg(feature = "asic")]
+        {
+            if N >= 8 && crate::asic_backend::is_initialized() {
+                let a: Vec<u32> = lhs.iter().map(|x| x.value).collect();
+                let b: Vec<u32> = rhs.iter().map(|x| x.value).collect();
+                let result = crate::asic_backend::execute_dot_product(&a, &b);
+                return Self::new(result);
+            }
+        }
+        // Software fallback for small N or when ASIC feature is disabled.
         // Accumulate products as u64 to avoid per-multiply reductions.
         // For M31: each value < P < 2^31, so product < P^2 < 2^62.
         // Sum of 4 products < 4 * (P-1)^2 = 2^64 - 2^35 + 16 < 2^64, which fits in u64.
