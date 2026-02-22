@@ -269,10 +269,12 @@ impl PrimeCharacteristicRing for Mersenne31 {
         #[cfg(feature = "asic")]
         {
             if N >= 8 && crate::asic_backend::is_initialized() {
-                let a: Vec<u32> = lhs.iter().map(|x| x.value).collect();
-                let b: Vec<u32> = rhs.iter().map(|x| x.value).collect();
-                let result = crate::asic_backend::execute_dot_product(&a, &b);
-                return Self::new(result);
+                let a: [u32; N] = array::from_fn(|i| lhs[i].value);
+                let b: [u32; N] = array::from_fn(|i| rhs[i].value);
+                if let Some(result) = crate::asic_backend::execute_dot_product(&a, &b) {
+                    return Self::new(result);
+                }
+                // ASIC failed; fall through to software path
             }
         }
         // Software fallback for small N or when ASIC feature is disabled.

@@ -1,6 +1,4 @@
 //! End-to-end Fibonacci AIR proof using Mersenne31 + Circle PCS.
-//! When compiled with --features asic, dot products >= 8 elements
-//! dispatch to the ASIC backend (mock in tests).
 
 use core::borrow::Borrow;
 
@@ -102,7 +100,6 @@ fn fibonacci_mod_p(n: usize) -> u32 {
         a = b;
         b = c;
     }
-    // After n iterations: a = F(n), b = F(n+1)
     a as u32
 }
 
@@ -146,7 +143,6 @@ fn make_config() -> Config {
 fn prove_and_verify_fibonacci(n: usize) {
     let trace = generate_trace::<Val>(0, 1, n);
 
-    // F(n) for n=64 rows: the last row's right value is F(64) mod P
     let expected_fib = fibonacci_mod_p(n);
 
     let pis = vec![
@@ -164,7 +160,6 @@ fn prove_and_verify_fibonacci(n: usize) {
 
 #[test]
 fn test_fibonacci_proof_software() {
-    // Without ASIC initialization, uses pure software path
     prove_and_verify_fibonacci(64);
 }
 
@@ -174,25 +169,18 @@ fn test_fibonacci_proof_asic() {
     use m31_accel_driver::mock::MockAsic;
     use p3_mersenne_31::asic_backend;
 
-    // Initialize ASIC backend with mock
     asic_backend::init_asic_with_transport(MockAsic::new());
-
-    // Now dot_product calls for N>=8 will go through the ASIC mock
     prove_and_verify_fibonacci(64);
 }
 
 #[cfg(feature = "asic")]
 #[test]
 fn test_fibonacci_trace_identical() {
-    // Verify trace values are identical regardless of ASIC vs software path.
-    // The trace generation itself doesn't use dot_product, so this confirms
-    // the field arithmetic is consistent.
     let trace_sw = generate_trace::<Val>(0, 1, 64);
     let trace_asic = generate_trace::<Val>(0, 1, 64);
 
     assert_eq!(trace_sw.values, trace_asic.values);
 
-    // Verify F(64) mod P
     let expected = fibonacci_mod_p(64);
     let last_row_right = trace_sw.values[63 * 2 + 1];
     assert_eq!(last_row_right, Val::new(expected));
@@ -200,9 +188,7 @@ fn test_fibonacci_trace_identical() {
 
 #[test]
 fn test_fibonacci_f64_value() {
-    // F(64) mod P should be a specific value — sanity check
     let val = fibonacci_mod_p(64);
-    // F(64) = 10610209857723 -> mod P = 10610209857723 mod 2147483647
     let expected = (10610209857723u64 % 0x7FFFFFFF) as u32;
     assert_eq!(val, expected);
 }
